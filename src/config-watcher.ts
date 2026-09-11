@@ -1,0 +1,334 @@
+import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+import { AuthStore } from './auth';
+import { log } from './logger';
+import {
+  AppConfig,
+  DEFAULT_BATCH_START,
+  DEFAULT_HEDGE_LIST,
+  DEFAULT_POLL_INTERVAL_MS,
+  DEFAULT_SIGNAL_TIMEOUT_MS,
+  DEFAULT_UI_PORT,
+  NodeEndpoint,
+  POLL_INTERVAL_MAX_MS,
+  POLL_INTERVAL_MIN_MS,
+  SIGNAL_TIMEOUT_MAX_MS,
+  SIGNAL_TIMEOUT_MIN_MS,
+} from './types';
+
+function decodeConfigBuffer(buf: Buffer): string {
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
+    throw new Error('配置文件是 UTF-16 LE，请改成 UTF-8 无 BOM');
+  }
+  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+    throw new Error('配置文件是 UTF-16 BE，请改成 UTF-8 无 BOM');
+  }
+  let text = buf.toString('utf8');
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  return text.replace(/^\uFEFF/, '');
+}
+
+function normalizeBase(raw: string): string {
+  return String(raw || '')
+    .trim()
+    .replace(/\/$/, '');
+}
+
+function parseNode(raw: unknown, label: string): NodeEndpoint {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`${label} 必须是对象`);
+  }
+  const o = raw as Record<string, unknown>;
+  const base = normalizeBase(String(o.base ?? o.ip ?? o.url ?? ''));
+  if (!base) throw new Error(`${label}.base 不能为空`);
+  if (!/^https?:\/\//i.test(base)) {
+    throw new Error(`${label}.base 需以 http:// 或 https:// 开头`);
+  }
+  const secretKey = String(o.secretKey ?? o.SecretKey ?? o.serviceKey ?? '').trim();
+  const name = String(o.name ?? '').trim() || undefined;
+  return { name, base, secretKey };
+}
+
+export function validateConfig(raw: unknown): AppConfig {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('配置根节点必须是 JSON 对象');
+  }
+  const o = raw as Record<string, unknown>;
+
+  let pollIntervalMs = Number(o.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS);
+  if (!Number.isFinite(pollIntervalMs)) pollIntervalMs = DEFAULT_POLL_INTERVAL_MS;
+  pollIntervalMs = Math.floor(pollIntervalMs);
+  if (pollIntervalMs < POLL_INTERVAL_MIN_MS) pollIntervalMs = POLL_INTERVAL_MIN_MS;
+  if (pollIntervalMs > POLL_INTERVAL_MAX_MS) pollIntervalMs = POLL_INTERVAL_MAX_MS;
+
+  let signalTimeoutMs = Number(o.signalTimeoutMs ?? DEFAULT_SIGNAL_TIMEOUT_MS);
+  if (!Number.isFinite(signalTimeoutMs)) signalTimeoutMs = DEFAULT_SIGNAL_TIMEOUT_MS;
+  signalTimeoutMs = Math.floor(signalTimeoutMs);
+  if (signalTimeoutMs < SIGNAL_TIMEOUT_MIN_MS) signalTimeoutMs = SIGNAL_TIMEOUT_MIN_MS;
+  if (signalTimeoutMs > SIGNAL_TIMEOUT_MAX_MS) signalTimeoutMs = SIGNAL_TIMEOUT_MAX_MS;
+
+  let requestTimeoutMs = Math.floor(Number(o.requestTimeoutMs ?? 15000));
+  if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs < 1000) {
+    requestTimeoutMs = 15000;
+  }
+
+  let uiPort = Math.floor(Number(o.uiPort ?? DEFAULT_UI_PORT));
+  if (!Number.isFinite(uiPort) || uiPort < 0 || uiPort > 65535) {
+    uiPort = DEFAULT_UI_PORT;
+  }
+  const epRaw =
+    o.endpoints && typeof o.endpoints === 'object' && !Array.isArray(o.endpoints)
+      ? (o.endpoints as Record<string, unknown>)
+      : {};
+  const endpoints = {
+    hedgeList: String(epRaw.hedgeList || DEFAULT_HEDGE_LIST).replace(/^\//, ''),
+    batchStart: String(epRaw.batchStart || DEFAULT_BATCH_START).replace(/^\//, ''),
+  };
+
+  const main = parseNode(o.main, 'main');
+  const targetsRaw = Array.isArray(o.targets) ? o.targets : [];
+  const targets = targetsRaw.map((t, i) => parseNode(t, `targets[${i}]`));
+
+  return {
+    pollIntervalMs,
+    signalTimeoutMs,
+    requestTimeoutMs,
+    uiPort,
+    endpoints,
+    main,
+    targets,
+  };
+}
+
+/** 已有 JSON 缺了新版字段时写回 SQLite（多出来的旧字段下次保存时丢掉）。 */
+function configNeedsBackfill(stored: unknown, shaped: unknown): boolean {
+  if (shaped && typeof shaped === 'object' && !Array.isArray(shaped)) {
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return true;
+    const s = stored as Record<string, unknown>;
+    const t = shaped as Record<string, unknown>;
+    for (const k of Object.keys(t)) {
+      if (!(k in s)) return true;
+      if (configNeedsBackfill(s[k], t[k])) return true;
+    }
+  }
+  return false;
+}
+
+function persistShape(cfg: AppConfig): Record<string, unknown> {
+  return {
+    pollIntervalMs: cfg.pollIntervalMs,
+    signalTimeoutMs: cfg.signalTimeoutMs,
+    requestTimeoutMs: cfg.requestTimeoutMs,
+    uiPort: cfg.uiPort,
+    endpoints: cfg.endpoints,
+    main: {
+      ...(cfg.main.name ? { name: cfg.main.name } : {}),
+      base: cfg.main.base,
+      secretKey: cfg.main.secretKey,
+    },
+    targets: cfg.targets.map((t) => ({
+      ...(t.name ? { name: t.name } : {}),
+      base: t.base,
+      secretKey: t.secretKey,
+    })),
+  };
+}
+
+export function defaultConfigRaw(): Record<string, unknown> {
+  return {
+    pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
+    requestTimeoutMs: 15000,
+    uiPort: DEFAULT_UI_PORT,
+    endpoints: { hedgeList: DEFAULT_HEDGE_LIST, batchStart: DEFAULT_BATCH_START },
+    main: { name: 'main', base: 'http://127.0.0.1:6686', secretKey: '' },
+    targets: [],
+  };
+}
+
+function maskKey(key: string): string {
+  const k = String(key || '');
+  if (!k) return '(空)';
+  if (k.length <= 8) return '****';
+  return `${k.slice(0, 2)}****${k.slice(-4)}`;
+}
+
+export function editorConfig(cfg: AppConfig): Record<string, unknown> {
+  return {
+    pollIntervalMs: cfg.pollIntervalMs,
+    requestTimeoutMs: cfg.requestTimeoutMs,
+    uiPort: cfg.uiPort,
+    main: {
+      name: cfg.main.name || '',
+      base: cfg.main.base,
+      hasSecret: Boolean(cfg.main.secretKey),
+    },
+    targets: cfg.targets.map((t, i) => ({
+      origIndex: i,
+      name: t.name || '',
+      base: t.base,
+      hasSecret: Boolean(t.secretKey),
+    })),
+  };
+}
+
+export function summarizeConfig(cfg: AppConfig): Record<string, unknown> {
+  return {
+    pollIntervalMs: cfg.pollIntervalMs,
+    signalTimeoutMs: cfg.signalTimeoutMs,
+    requestTimeoutMs: cfg.requestTimeoutMs,
+    uiPort: cfg.uiPort,
+    endpoints: cfg.endpoints,
+    main: { base: cfg.main.base, secretKey: maskKey(cfg.main.secretKey) },
+    targets: cfg.targets.map((t, i) => ({
+      name: t.name || `target-${i + 1}`,
+      base: t.base,
+      secretKey: maskKey(t.secretKey),
+    })),
+  };
+}
+
+function legacyConfigPath(): string {
+  return path.resolve(process.cwd(), 'config.json');
+}
+
+function tryReadJsonFile(filePath: string): unknown | null {
+  if (!fs.existsSync(filePath)) return null;
+  const text = decodeConfigBuffer(fs.readFileSync(filePath));
+  return JSON.parse(text);
+}
+
+function retireLegacyConfigFile(filePath: string): void {
+  const bak = `${filePath}.bak`;
+  try {
+    if (fs.existsSync(bak)) fs.unlinkSync(bak);
+    fs.renameSync(filePath, bak);
+    log.warn(`已将 ${filePath} 改为 ${bak}，配置改在查看页和 SQLite 里维护`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log.warn(`配置已导入 SQLite，但未能改名 ${filePath}: ${msg}。该文件已不再使用，可手动删除`);
+  }
+}
+
+/** CLI 探测脚本：读 SQLite 里的运行配置 */
+export async function loadRuntimeConfig(): Promise<AppConfig> {
+  const auth = new AuthStore();
+  await auth.init();
+  return new ConfigWatcher(auth).get();
+}
+
+export class ConfigWatcher extends EventEmitter {
+  /** SQLite 路径，查看页沿用 filePath 字段名 */
+  readonly filePath: string;
+  private auth: AuthStore;
+  private current: AppConfig;
+  private loadedAt = '';
+
+  constructor(auth: AuthStore) {
+    super();
+    this.auth = auth;
+    this.filePath = auth.filePath;
+    this.current = this.loadInitial();
+    this.loadedAt = new Date().toISOString();
+  }
+
+  get(): AppConfig {
+    return this.current;
+  }
+
+  getLoadedAt(): string {
+    return this.loadedAt;
+  }
+
+  /** 页面改运行参数 / 节点：写回 SQLite */
+  patchRuntime(patch: {
+    pollIntervalMs?: unknown;
+    requestTimeoutMs?: unknown;
+    uiPort?: unknown;
+    main?: unknown;
+    targets?: unknown;
+  }): AppConfig {
+    const raw = persistShape(this.current);
+    const prevCfg = this.current;
+
+    if (patch.pollIntervalMs !== undefined) raw.pollIntervalMs = patch.pollIntervalMs;
+    if (patch.requestTimeoutMs !== undefined) raw.requestTimeoutMs = patch.requestTimeoutMs;
+    if (patch.uiPort !== undefined) raw.uiPort = patch.uiPort;
+
+    if (patch.main && typeof patch.main === 'object' && !Array.isArray(patch.main)) {
+      const m = patch.main as Record<string, unknown>;
+      const incoming = String(m.secretKey ?? '').trim();
+      const name = String(m.name ?? '').trim();
+      raw.main = {
+        ...(name ? { name } : {}),
+        base: String(m.base ?? ''),
+        secretKey: incoming || prevCfg.main.secretKey,
+      };
+    }
+
+    if (Array.isArray(patch.targets)) {
+      raw.targets = patch.targets.map((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          throw new Error('从节点必须是对象');
+        }
+        const t = item as Record<string, unknown>;
+        const orig = Number(t.origIndex);
+        const keep =
+          Number.isInteger(orig) && orig >= 0 && orig < prevCfg.targets.length
+            ? prevCfg.targets[orig].secretKey
+            : '';
+        const incoming = String(t.secretKey ?? '').trim();
+        const name = String(t.name ?? '').trim();
+        return {
+          ...(name ? { name } : {}),
+          base: String(t.base ?? ''),
+          secretKey: incoming || keep,
+        };
+      });
+    }
+
+    const next = validateConfig(raw);
+    const prev = this.current;
+    this.auth.saveConfigRaw(persistShape(next));
+    this.current = next;
+    this.loadedAt = new Date().toISOString();
+    log.info('配置已保存 (页面)', summarizeConfig(next));
+    this.emit('reload', next, prev);
+    return next;
+  }
+
+  start(): void {
+    log.info(`配置已从 SQLite 加载: ${this.filePath}`);
+  }
+
+  stop(): void {
+    /* SQLite 无文件监听 */
+  }
+
+  private loadInitial(): AppConfig {
+    const existing = this.auth.getConfigRaw();
+    if (existing != null) {
+      const cfg = validateConfig(existing);
+      const shaped = persistShape(cfg);
+      if (configNeedsBackfill(existing, shaped)) {
+        this.auth.saveConfigRaw(shaped);
+        log.info('已把新增配置字段的默认值写入 SQLite');
+      }
+      return cfg;
+    }
+
+    const leftover = legacyConfigPath();
+    const fromFile = tryReadJsonFile(leftover);
+    if (fromFile != null) {
+      const cfg = validateConfig(fromFile);
+      this.auth.saveConfigRaw(persistShape(cfg));
+      retireLegacyConfigFile(leftover);
+      return cfg;
+    }
+
+    const cfg = validateConfig(defaultConfigRaw());
+    this.auth.saveConfigRaw(persistShape(cfg));
+    log.warn('已写入默认配置到 SQLite，请在查看页「运行配置」填写主/从节点');
+    return cfg;
+  }
+}
