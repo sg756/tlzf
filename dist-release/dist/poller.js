@@ -68,10 +68,6 @@ class HedgePoller {
             this.noteSkip('主节点 secretKey 为空，跳过');
             return;
         }
-        if (!cfg.targets.length) {
-            this.noteSkip('从节点列表为空，跳过');
-            return;
-        }
         const { data } = await (0, mapi_client_1.mapiRequest)({
             cfg,
             base: cfg.main.base,
@@ -98,6 +94,10 @@ class HedgePoller {
                             : typeof data;
                 logger_1.log.warn(`主节点未解析到对冲组合 (${preview})，请核对 endpoints.hedgeList`);
             }
+            this.stats.lastForwarded = 0;
+            return;
+        }
+        if (!cfg.targets.length) {
             this.stats.lastForwarded = 0;
             return;
         }
