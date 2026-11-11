@@ -1,5 +1,5 @@
 node_modules/
-dist/
+/dist/
 config.json
 config.json.bak
 dist-release/node_modules/

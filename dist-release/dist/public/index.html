@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>套利转发</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("arb-theme");
+        document.documentElement.setAttribute("data-theme", t === "dark" ? "dark" : "light");
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+  <style>
+    :root {
+      --bg: #eef6fb;
+      --panel: #ffffff;
+      --panel-2: #e6f0f8;
+      --border: #c9dcea;
+      --text: #1e3348;
+      --muted: #6a8094;
+      --primary: #2563eb;
+      --primary-soft: rgba(37, 99, 235, 0.12);
+      --ok: #16a34a;
+      --ok-soft: rgba(22, 163, 74, 0.12);
+      --danger: #dc2626;
+      --danger-soft: rgba(220, 38, 38, 0.12);
+      --warn: #d97706;
+      --warn-soft: rgba(217, 119, 6, 0.12);
+      --hover: #e3eef8;
+      --shadow: rgba(30, 70, 120, 0.14);
+      --modal-mask: rgba(20, 50, 80, 0.28);
+      --sidebar-start: #d7ebf8;
+      --sidebar-end: #eaf4fb;
+      --topbar-bg: rgba(255, 255, 255, 0.9);
+      --row-hover: rgba(37, 99, 235, 0.05);
+      --nav-active-fg: #1d4ed8;
+      --raw: #334e66;
+      --main-glow: rgba(59, 130, 246, 0.12);
+      --login-glow: rgba(59, 130, 246, 0.2);
+      --dropdown-bg: #ffffff;
+      --err-border: rgba(220, 38, 38, 0.22);
+      --ok-border: rgba(22, 163, 74, 0.25);
+      --new-row: rgba(22, 163, 74, 0.08);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      color-scheme: light;
+    }
+    html[data-theme="dark"] {
+      --bg: #0b1017;
+      --panel: #141c27;
+      --panel-2: #1b2533;
+      --border: #2a3646;
+      --text: #e8eef6;
+      --muted: #8b9bb0;
+      --primary: #3b82f6;
+      --primary-soft: rgba(59, 130, 246, 0.16);
+      --ok: #22c55e;
+      --ok-soft: rgba(34, 197, 94, 0.16);
+      --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.16);
+      --warn: #f59e0b;
+      --warn-soft: rgba(245, 158, 11, 0.16);
+      --hover: #1e2a3a;
+      --shadow: rgba(0, 0, 0, 0.4);
+      --modal-mask: rgba(5, 8, 12, 0.72);
+      --sidebar-start: #121924;
+      --sidebar-end: #0e141c;
+      --topbar-bg: rgba(20, 28, 39, 0.92);
+      --row-hover: rgba(255, 255, 255, 0.025);
+      --nav-active-fg: #fff;
+      --raw: #c9d6e8;
+      --main-glow: rgba(59, 130, 246, 0.08);
+      --login-glow: rgba(59, 130, 246, 0.16);
+      --dropdown-bg: #17202c;
+      --err-border: rgba(239, 68, 68, 0.25);
+      --ok-border: rgba(34, 197, 94, 0.25);
+      --new-row: rgba(34, 197, 94, 0.08);
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); }
+    [hidden] { display: none !important; }
+    a { color: inherit; text-decoration: none; }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-weight: 600;
+      font-size: 13px;
+      background: var(--primary);
+      color: #fff;
+      line-height: 1.3;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    button.ghost:hover { background: var(--hover); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 13px;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: var(--primary); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      vertical-align: middle;
+    }
+    .table-card table {
+      min-width: 1320px;
+      table-layout: fixed;
+    }
+    .nowrap { white-space: nowrap; }
+    .clip {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .muted { color: var(--muted); }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      background: var(--panel);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      box-shadow: 0 1px 0 var(--border);
+    }
+    tbody tr:hover { background: var(--row-hover); }
+    .layout { display: flex; height: 100vh; overflow: hidden; }
+    .sidebar {
+      width: 228px;
+      background: linear-gradient(180deg, var(--sidebar-start) 0%, var(--sidebar-end) 100%);
+      border-right: 1px solid var(--border);
+      padding: 22px 14px 16px;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 6px 22px;
+    }
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #3b82f6, #22d3ee);
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(59, 130, 246, 0.28);
+    }
+    .brand h1 { font-size: 15px; margin: 0; letter-spacing: 0.02em; }
+    .brand small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; margin-top: 2px; }
+    .nav { display: flex; flex-direction: column; gap: 4px; }
+    .nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 550;
+    }
+    .nav a:hover { background: var(--hover); color: var(--text); }
+    .nav a.active {
+      background: var(--primary-soft);
+      color: var(--nav-active-fg);
+      box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.35);
+    }
+    .nav .ico {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--panel-2);
+      font-size: 13px;
+    }
+    .nav a.active .ico { background: rgba(59, 130, 246, 0.28); }
+    .side-hint {
+      margin-top: auto;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .main-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 22px;
+      background: var(--topbar-bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+    }
+    .crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+    .crumb .current { color: var(--text); font-weight: 650; font-size: 15px; }
+    .live {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 4px var(--ok-soft);
+    }
+    .main {
+      flex: 1;
+      min-height: 0;
+      padding: 16px 20px 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(1200px 400px at 80% -10%, var(--main-glow), transparent 55%),
+        var(--bg);
+    }
+    .page-list { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; gap: 12px; }
+    .toolbar, .table-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .toolbar { padding: 12px 14px; flex-shrink: 0; position: relative; z-index: 5; }
+    .table-card {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 0;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .chip b { color: var(--text); font-weight: 650; }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 0; }
+    .err {
+      color: var(--danger);
+      font-size: 12px;
+      margin: 0;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: var(--danger-soft);
+      border: 1px solid var(--err-border);
+      flex-shrink: 0;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .badge.ok { background: var(--ok-soft); color: var(--ok); }
+    .badge.warn { background: var(--warn-soft); color: var(--warn); }
+    .badge.danger { background: var(--danger-soft); color: var(--danger); }
+    .badge.new { background: var(--ok-soft); color: var(--ok); margin-right: 6px; }
+    .mono { font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size: 12px; }
+    .raw { color: var(--raw); }
+    .pair {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .pair strong { font-size: 13px; font-weight: 650; }
+    .pair span {
+      color: var(--muted);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .list-empty {
+      padding: 48px 16px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .list-empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 6px; }
+    .pager { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--border); }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: var(--modal-mask);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .modal-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      width: min(860px, 100%);
+      max-height: min(88vh, 900px);
+      overflow: auto;
+      padding: 18px 20px 22px;
+      box-shadow: 0 24px 60px var(--shadow);
+    }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .modal-head h3 { margin: 0; font-size: 16px; }
+    label.block { display: block; margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      max-height: 260px;
+      overflow: auto;
+      margin: 0 0 14px;
+    }
+    label.inline { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+    tr.is-new { background: var(--new-row); }
+    .ops { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+    .page-form { overflow: auto; gap: 10px; }
+    .form-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      max-width: 880px;
+    }
+    .form-card h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .form-card h3 .hint { margin: 0; font-weight: 500; }
+    .field-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      align-items: center;
+    }
+    .page-form .field {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .page-form .field label {
+      display: inline;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin: 0;
+      white-space: nowrap;
+    }
+    .page-form .field input[type="number"] { width: 112px; }
+    .page-form .field input[type="password"] { width: 220px; }
+    .ok-msg {
+      color: var(--ok);
+      font-size: 12px;
+      margin: 0 0 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: var(--ok-soft);
+      border: 1px solid var(--ok-border);
+    }
+    .node-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .node-list li {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+    .node-list strong { display: block; font-size: 13px; }
+    .node-list span { color: var(--muted); font-size: 12px; }
+    .node-edit {
+      display: grid;
+      grid-template-columns: 140px minmax(240px, 1fr) 180px 72px;
+      gap: 6px;
+      align-items: end;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      margin-top: 6px;
+    }
+    .node-edit label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .node-edit input { width: 100%; }
+    .cfg-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+    .cfg-actions .err, .cfg-actions .ok-msg { margin: 0; }
+    .ex-filter {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      width: 100%;
+    }
+    .ex-dd { position: relative; }
+    .ex-dd.open { z-index: 30; }
+    button.ex-dd-btn {
+      min-width: 188px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 12px;
+    }
+    button.ex-dd-btn .ex-dd-label { font-weight: 650; }
+    button.ex-dd-btn .ex-dd-sum {
+      color: var(--muted);
+      font-weight: 500;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    button.ex-dd-btn .caret { color: var(--muted); font-size: 10px; }
+    .ex-dd.open button.ex-dd-btn { border-color: var(--primary); }
+    .ex-dd-panel {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      z-index: 30;
+      min-width: 300px;
+      max-height: min(360px, 52vh);
+      overflow: auto;
+      background: var(--dropdown-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 6px;
+      box-shadow: 0 18px 40px var(--shadow);
+    }
+    .ex-dd.open .ex-dd-panel { display: block; }
+    button.ex-opt {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--muted);
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 650;
+      text-align: left;
+    }
+    button.ex-opt:hover { background: var(--hover); color: var(--text); filter: none; }
+    button.ex-opt.on { background: var(--primary-soft); color: var(--nav-active-fg); }
+    button.ex-opt.idle { opacity: 0.55; }
+    button.ex-opt .ex-code {
+      width: 36px;
+      flex-shrink: 0;
+      font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    }
+    button.ex-opt .ex-zh { flex: 1; font-weight: 500; }
+    button.ex-opt small { margin-left: auto; font-weight: 500; opacity: 0.8; }
+    .login-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background:
+        radial-gradient(900px 400px at 50% -10%, var(--login-glow), transparent 55%),
+        var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      width: min(380px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 26px 24px 22px;
+      box-shadow: 0 24px 60px var(--shadow);
+    }
+    .login-card h2 { margin: 0 0 6px; font-size: 18px; }
+    .login-card .field { margin-top: 14px; }
+    .login-card input { width: 100%; }
+    .login-card button { width: 100%; margin-top: 16px; padding: 10px 14px; }
+    .captcha-row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .captcha-row input { flex: 1; min-width: 0; }
+    .captcha-img {
+      width: 148px;
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .top-user { display: flex; align-items: center; gap: 10px; }
+    .theme-sel { min-width: 108px; padding: 5px 8px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <div>
+          <h1>套利转发</h1>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="#/signals" data-page="signals" class="active">
+          <span class="ico">◎</span>信号显示
+        </a>
+        <a href="#/posts" data-page="posts">
+          <span class="ico">≡</span>POST日志
+        </a>
+        <a href="#/settings" data-page="settings">
+          <span class="ico">⚙</span>运行配置
+        </a>
+        <a href="#/account" data-page="account">
+          <span class="ico">🔑</span>修改密码
+        </a>
+      </nav>
+      <p class="side-hint">数据只存在当前进程内存，重启后列表会清空，下一轮拉取会重新出现。</p>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="crumb">
+          <span>套利转发</span>
+          <span>/</span>
+          <span class="current" id="crumb">信号显示</span>
+        </div>
+        <div class="top-user">
+          <select id="theme-sel" class="theme-sel" title="外观主题" aria-label="外观主题">
+            <option value="light">浅蓝白底</option>
+            <option value="dark">深色</option>
+          </select>
+          <span class="muted" style="font-size:12px" id="who">—</span>
+          <button class="ghost" id="btn-logout" type="button">退出</button>
+          <div class="live"><span class="dot"></span><span id="live-text">实时同步</span></div>
+        </div>
+      </header>
+      <main class="main">
+        <div id="page-signals" class="page-list">
+          <p class="err" id="sig-err" hidden></p>
+          <div class="toolbar">
+            <div class="row">
+              <div class="chips">
+                <span class="chip">最近拉取 <b id="sig-time">—</b></span>
+                <span class="chip">组合 <b id="sig-count">0</b></span>
+                <span class="chip" id="sig-new-wrap" hidden>本批新增 <b id="sig-new">0</b></span>
+              </div>
+              <input id="sig-q" placeholder="过滤原文 / 币名" style="width:200px;margin-left:auto" />
+              <label class="inline"><input type="checkbox" id="sig-auto" checked /> 自动刷新</label>
+              <button class="ghost" id="sig-refresh" type="button">立即拉取</button>
+            </div>
+            <div class="ex-filter" id="sig-ex-filter">
+              <span class="hint">交易所</span>
+              <div class="ex-dd" data-group="has" id="ex-dd-has">
+                <button type="button" class="ghost ex-dd-btn" data-ex-toggle="has">
+                  <span class="ex-dd-label">包含</span>
+                  <span class="ex-dd-sum" id="ex-has-sum">全部</span>
+                  <span class="caret">▾</span>
+                </button>
+                <div class="ex-dd-panel" id="ex-has-panel"></div>
+              </div>
+              <div class="ex-dd" data-group="and" id="ex-dd-and">
+                <button type="button" class="ghost ex-dd-btn" data-ex-toggle="and">
+                  <span class="ex-dd-label">且含</span>
+                  <span class="ex-dd-sum" id="ex-and-sum">全部</span>
+                  <span class="caret">▾</span>
+                </button>
+                <div class="ex-dd-panel" id="ex-and-panel"></div>
+              </div>
+              <button class="ghost" id="sig-ex-clear" type="button">清空</button>
+            </div>
+            <p class="hint" style="margin-top:6px">不分多空。例如包含 bac、且含 okp，会找出两边是 bac 与 okp 的组合，左右顺序不限。灰色表示当前这批组合里没有该产品。</p>
+          </div>
+          <div class="table-card">
+            <table>
+              <colgroup>
+                <col style="width:190px" />
+                <col />
+                <col style="width:240px" />
+                <col style="width:240px" />
+                <col style="width:110px" />
+                <col style="width:88px" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>首次见到</th>
+                  <th>原文</th>
+                  <th>多头</th>
+                  <th>空头</th>
+                  <th>转发</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="sig-body"></tbody>
+            </table>
+            <div class="list-empty" id="sig-empty">
+              <b>暂无信号</b>
+              主节点还没有返回对冲组合
+            </div>
+          </div>
+        </div>
+        <div id="page-posts" class="page-list" hidden>
+          <p class="err" id="post-err" hidden></p>
+          <div class="toolbar">
+            <div class="row">
+              <select id="post-ok">
+                <option value="">全部状态</option>
+                <option value="true">成功</option>
+                <option value="false">失败</option>
+              </select>
+              <input id="post-q" placeholder="关键词（从节点 / 原文 / 返回）" style="width:260px" />
+              <button id="post-search" type="button">查询</button>
+              <button class="ghost" id="post-reset" type="button">重置</button>
+              <label class="inline"><input type="checkbox" id="post-record" /> 记录</label>
+              <button class="ghost" id="post-clear" type="button">全部清除</button>
+              <label class="inline"><input type="checkbox" id="post-auto" checked /> 自动刷新</label>
+              <span class="chip" style="margin-left:auto">共 <b id="post-meta">0</b> 条</span>
+            </div>
+          </div>
+          <div class="table-card">
+            <table>
+              <colgroup>
+                <col style="width:180px" />
+                <col style="width:220px" />
+                <col style="width:92px" />
+                <col style="width:80px" />
+                <col style="width:90px" />
+                <col style="width:72px" />
+                <col />
+                <col style="width:240px" />
+                <col style="width:168px" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>从节点</th>
+                  <th>状态</th>
+                  <th>HTTP</th>
+                  <th>耗时</th>
+                  <th>组合</th>
+                  <th>原文</th>
+                  <th>返回</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="post-body"></tbody>
+            </table>
+            <div class="list-empty" id="post-empty">
+              <b>暂无 POST 日志</b>
+              <span id="post-empty-hint">默认不记录自动转发。勾选「记录」后自动写入；信号表或这里点「重发」都会记一条。</span>
+            </div>
+            <div class="pager" id="post-pager" hidden></div>
+          </div>
+        </div>
+        <div id="page-settings" class="page-list page-form" hidden>
+          <div class="form-card">
+            <h3>拉取与请求</h3>
+            <div class="field-row">
+              <div class="field">
+                <label for="cfg-poll">拉取间隔（毫秒）</label>
+                <input id="cfg-poll" type="number" min="200" max="60000" step="100" title="范围 200–60000，保存后立刻生效" />
+              </div>
+              <div class="field">
+                <label for="cfg-timeout">请求超时（毫秒）</label>
+                <input id="cfg-timeout" type="number" min="1000" step="1000" title="最小 1000" />
+              </div>
+              <div class="field">
+                <label for="cfg-uiport">查看页端口</label>
+                <input id="cfg-uiport" type="number" min="0" max="65535" step="1" title="保存后会改监听端口" />
+              </div>
+            </div>
+          </div>
+          <div class="form-card">
+            <h3>主节点</h3>
+            <div class="node-edit">
+              <div>
+                <label>名称（可选）</label>
+                <input id="cfg-main-name" placeholder="main" />
+              </div>
+              <div>
+                <label>地址</label>
+                <input id="cfg-main-base" placeholder="http://IP:6686" />
+              </div>
+              <div>
+                <label>密钥 secretKey</label>
+                <input id="cfg-main-secret" type="password" autocomplete="off" placeholder="已设置，留空不改" />
+              </div>
+              <div></div>
+            </div>
+          </div>
+          <div class="form-card">
+            <h3>从节点</h3>
+            <div id="cfg-targets"></div>
+            <div class="cfg-actions">
+              <button class="ghost" id="cfg-add-target" type="button">新增从节点</button>
+              <button id="cfg-save" type="button">保存全部</button>
+              <p class="err" id="cfg-err" hidden></p>
+              <p class="ok-msg" id="cfg-ok" hidden></p>
+            </div>
+          </div>
+        </div>
+        <div id="page-account" class="page-list page-form" hidden>
+          <div class="form-card">
+            <h3>管理员密码</h3>
+            <div class="field-row">
+              <div class="field">
+                <label for="pw-old">当前密码</label>
+                <input id="pw-old" type="password" autocomplete="current-password" />
+              </div>
+              <div class="field">
+                <label for="pw-new">新密码</label>
+                <input id="pw-new" type="password" autocomplete="new-password" />
+              </div>
+              <div class="field">
+                <label for="pw-new2">确认新密码</label>
+                <input id="pw-new2" type="password" autocomplete="new-password" />
+              </div>
+            </div>
+            <div class="cfg-actions">
+              <button id="pw-save" type="button">修改密码</button>
+              <p class="err" id="pw-err" hidden></p>
+              <p class="ok-msg" id="pw-ok" hidden></p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div class="login-gate" id="login-gate">
+    <form class="login-card" id="login-form">
+      <h2>登录</h2>
+      <div class="field">
+        <label class="block" for="login-user">用户名</label>
+        <input id="login-user" name="username" value="admin" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label class="block" for="login-pass">密码</label>
+        <input id="login-pass" name="password" type="password" autocomplete="current-password" />
+      </div>
+      <div class="field">
+        <label class="block" for="login-captcha">验证码</label>
+        <div class="captcha-row">
+          <input id="login-captcha" name="captcha" maxlength="6" autocomplete="off" placeholder="点击图片刷新" />
+          <img class="captcha-img" id="login-captcha-img" alt="验证码" title="点击刷新" src="/api/captcha" />
+        </div>
+      </div>
+      <p class="err" id="login-err" hidden></p>
+      <button type="submit" id="login-btn">进入</button>
+    </form>
+  </div>
+  <div class="modal-backdrop" id="modal" hidden>
+    <div class="modal-panel" id="modal-panel"></div>
+  </div>
+  <script>
+    const SPOT_QUOTES = new Set(["U", "USDT", "USDC", "USD", "BTC", "ETH", "EUR", "FDUSD", "DAI", "TUSD"]);
+    const NEW_MS = 8000;
+    const POLL_MS = 2000;
+    const PAGE_SIZE = 50;
+    const THEME_KEY = "arb-theme";
+
+    const known = new Set();
+    const highlightUntil = new Map();
+    const EX_NAME = {
+      ba: "币安现货",
+      bac: "币安USDT永续",
+      bab: "币安USDC永续",
+      bap: "币安币本位永续",
+      bas: "币安币本位交割",
+      ok: "欧易现货",
+      okp: "欧易USDT永续",
+      oks: "欧易币本位永续",
+      oku: "欧易USDT交割",
+      okc: "欧易币本位交割",
+      by: "BybIT现货",
+      byu: "BybIT永续USDT",
+      byp: "BybIT永续USDC",
+      hb: "火必现货",
+      hbp: "火必USDT永续",
+      gt: "Gate现货",
+      gtc: "Gate永续USDT",
+      kc: "KuCoin现货",
+      kcp: "KuCoin永续USDT",
+      kcc: "KuCoin永续USDC",
+      bg: "BitGet现货",
+      bgu: "BitGet永续USDT",
+      bgc: "BitGet永续USDC",
+      hpc: "HyperLiquid永续USDC",
+      hk: "HashKey现货香港",
+      bp: "Backpack现货",
+      bpc: "Backpack永续USDC",
+      at: "Aster现货",
+      atc: "Aster永续USDT",
+      ltc: "Lighter永续USDC",
+    };
+    const KNOWN_EX = Object.keys(EX_NAME);
+    const seenExCodes = new Set();
+    const hasFilters = new Set();
+    const andFilters = new Set();
+    let lastExChipKey = "";
+    let openExMenu = "";
+    let primed = false;
+    let sigTimer = null;
+    let postTimer = null;
+    let postSkip = 0;
+    let postTotal = 0;
+    let postUiReady = false;
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+    function equalCoinDisplay(eq) {
+      const v = String(eq || "").trim().toUpperCase();
+      if (!v) return "—";
+      if (v === "PC") return "永续(PC)";
+      if (SPOT_QUOTES.has(v)) return v;
+      return "交割(" + v + ")";
+    }
+    function fmtTime(iso) {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      return isNaN(d.getTime()) ? iso : d.toLocaleString();
+    }
+    function exLabel(code) {
+      const c = String(code || "").trim();
+      if (!c) return "—";
+      const name = EX_NAME[c.toLowerCase()];
+      return name ? name + " (" + c + ")" : c;
+    }
+    function pairCodes(s) {
+      return [s.ApiCodeA, s.ApiCodeB]
+        .map((x) => String(x || "").trim().toLowerCase())
+        .filter(Boolean);
+    }
+    function matchExFilter(s) {
+      const have = new Set(pairCodes(s));
+      const need = new Set([...hasFilters, ...andFilters]);
+      for (const code of need) {
+        if (!have.has(code)) return false;
+      }
+      return true;
+    }
+    function groupSummary(pickedSet) {
+      const picked = [...pickedSet];
+      if (!picked.length) return "全部";
+      const names = picked.map((c) => EX_NAME[c] || c);
+      if (names.length === 1) return names[0];
+      return names[0] + " 等" + names.length + "项";
+    }
+    function closeExMenus() {
+      openExMenu = "";
+      document.querySelectorAll(".ex-dd").forEach((el) => el.classList.remove("open"));
+    }
+    function renderExOpt(c, counts, selected, side) {
+      const k = c.toLowerCase();
+      const n = counts.get(k) || 0;
+      const on = selected.has(k);
+      const name = EX_NAME[k] || c;
+      return (
+        '<button type="button" class="ex-opt' + (on ? " on" : "") + (n ? "" : " idle") +
+        '" data-ex="' + esc(c) + '" data-side="' + side + '" title="' + esc(name + " · " + c) + '">' +
+        '<span class="ex-code">' + esc(c) + "</span>" +
+        '<span class="ex-zh">' + esc(name) + "</span>" +
+        (n ? "<small>" + n + "</small>" : "") +
+        "</button>"
+      );
+    }
+    function allExCodes() {
+      const used = new Set(KNOWN_EX.map((c) => c.toLowerCase()));
+      const extras = [...seenExCodes]
+        .filter((c) => !used.has(c.toLowerCase()))
+        .sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+      return KNOWN_EX.concat(extras);
+    }
+    function renderExChips(items) {
+      const counts = new Map();
+      for (const s of items) {
+        const seen = new Set();
+        for (const raw of [s.ApiCodeA, s.ApiCodeB]) {
+          const c = String(raw || "").trim();
+          if (!c) continue;
+          seenExCodes.add(c);
+          const k = c.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          counts.set(k, (counts.get(k) || 0) + 1);
+        }
+      }
+      const codes = allExCodes();
+      const key =
+        codes.map((c) => c + ":" + (counts.get(c.toLowerCase()) || 0)).join("|") +
+        "#H" + [...hasFilters].sort().join(",") +
+        "#A" + [...andFilters].sort().join(",") +
+        "#" + openExMenu;
+      if (key === lastExChipKey) return;
+      lastExChipKey = key;
+      const hasPanel = document.getElementById("ex-has-panel");
+      const andPanel = document.getElementById("ex-and-panel");
+      const hasScroll = hasPanel.scrollTop;
+      const andScroll = andPanel.scrollTop;
+      hasPanel.innerHTML = codes.map((c) => renderExOpt(c, counts, hasFilters, "has")).join("");
+      andPanel.innerHTML = codes.map((c) => renderExOpt(c, counts, andFilters, "and")).join("");
+      document.getElementById("ex-has-sum").textContent = groupSummary(hasFilters);
+      document.getElementById("ex-and-sum").textContent = groupSummary(andFilters);
+      document.getElementById("ex-dd-has").classList.toggle("open", openExMenu === "has");
+      document.getElementById("ex-dd-and").classList.toggle("open", openExMenu === "and");
+      hasPanel.scrollTop = hasScroll;
+      andPanel.scrollTop = andScroll;
+    }
+
+    function applyTheme(name) {
+      const theme = name === "dark" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", theme);
+      try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+      document.querySelectorAll("#theme-sel").forEach((el) => {
+        if (el.value !== theme) el.value = theme;
+      });
+    }
+    function initTheme() {
+      let saved = "light";
+      try {
+        const t = localStorage.getItem(THEME_KEY);
+        if (t === "dark") saved = "dark";
+      } catch (e) {}
+      applyTheme(saved);
+      document.querySelectorAll("#theme-sel").forEach((el) => {
+        el.onchange = (e) => applyTheme(e.target.value);
+      });
+    }
+    initTheme();
+
+    function currentPage() {
+      const h = (location.hash || "#/signals").replace(/^#/, "");
+      if (h.indexOf("/posts") === 0) return "posts";
+      if (h.indexOf("/settings") === 0) return "settings";
+      if (h.indexOf("/account") === 0) return "account";
+      return "signals";
+    }
+    function setPage(name) {
+      const titles = { signals: "信号显示", posts: "POST日志", settings: "运行配置", account: "修改密码" };
+      document.getElementById("page-signals").hidden = name !== "signals";
+      document.getElementById("page-posts").hidden = name !== "posts";
+      document.getElementById("page-settings").hidden = name !== "settings";
+      document.getElementById("page-account").hidden = name !== "account";
+      document.getElementById("crumb").textContent = titles[name] || name;
+      document.querySelectorAll(".nav a").forEach((a) => {
+        a.classList.toggle("active", a.getAttribute("data-page") === name);
+      });
+    }
+    function showErr(id, msg) {
+      const el = document.getElementById(id);
+      if (!msg) { el.hidden = true; el.textContent = ""; return; }
+      el.hidden = false;
+      el.textContent = msg;
+    }
+
+    async function loadSignals() {
+      const res = await fetch("/api/signals");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+      const now = Date.now();
+      let added = 0;
+      if (primed) {
+        for (const s of items) {
+          if (!known.has(s.raw)) {
+            added += 1;
+            highlightUntil.set(s.raw, now + NEW_MS);
+          }
+        }
+      }
+      known.clear();
+      for (const s of items) known.add(s.raw);
+      primed = true;
+
+      renderExChips(items);
+      const q = document.getElementById("sig-q").value.trim().toUpperCase();
+      const visible = items.filter((s) => {
+        if (!matchExFilter(s)) return false;
+        if (!q) return true;
+        const blob = [s.raw, s.CoinNameA, s.CoinNameB, s.EqualCoinNameA, s.EqualCoinNameB, s.ApiCodeA, s.ApiCodeB]
+          .join(" ").toUpperCase();
+        return blob.indexOf(q) >= 0;
+      });
+      visible.sort((a, b) => {
+        const na = (highlightUntil.get(a.raw) || 0) > now ? 1 : 0;
+        const nb = (highlightUntil.get(b.raw) || 0) > now ? 1 : 0;
+        if (na !== nb) return nb - na;
+        const ta = Date.parse(a.seenAt) || 0;
+        const tb = Date.parse(b.seenAt) || 0;
+        if (tb !== ta) return tb - ta;
+        return String(b.raw).localeCompare(String(a.raw));
+      });
+
+      document.getElementById("sig-time").textContent = data.polledAt
+        ? new Date(data.polledAt).toLocaleTimeString()
+        : "—";
+      document.getElementById("sig-count").textContent = visible.length + "/" + items.length;
+      document.getElementById("sig-new-wrap").hidden = added <= 0;
+      document.getElementById("sig-new").textContent = String(added);
+      document.getElementById("live-text").textContent = data.polledAt
+        ? "最近同步 " + new Date(data.polledAt).toLocaleTimeString()
+        : "等待拉取";
+      showErr("sig-err", data.lastError || "");
+
+      const tbody = document.getElementById("sig-body");
+      tbody.innerHTML = visible.map((s) => {
+        const isNew = (highlightUntil.get(s.raw) || 0) > now;
+        const all = s.targetCount > 0 && s.forwardedCount >= s.targetCount;
+        const none = !s.forwardedCount;
+        const badge = all
+          ? '<span class="badge ok">已转发</span>'
+          : none
+            ? '<span class="badge warn">未转发</span>'
+            : '<span class="badge warn">部分 ' + s.forwardedCount + "/" + s.targetCount + "</span>";
+        return (
+          '<tr class="' + (isNew ? "is-new" : "") + '">' +
+          '<td class="nowrap muted" style="font-size:12px">' +
+            (isNew ? '<span class="badge new">新</span>' : "") + esc(fmtTime(s.seenAt)) +
+          "</td>" +
+          '<td class="mono raw clip" title="' + esc(s.raw) + '">' + esc(s.raw) + "</td>" +
+          '<td><div class="pair"><strong>' + esc(s.CoinNameA) + "</strong><span>" +
+            esc(equalCoinDisplay(s.EqualCoinNameA)) + " · " + esc(exLabel(s.ApiCodeA)) +
+          "</span></div></td>" +
+          '<td><div class="pair"><strong>' + esc(s.CoinNameB) + "</strong><span>" +
+            esc(equalCoinDisplay(s.EqualCoinNameB)) + " · " + esc(exLabel(s.ApiCodeB)) +
+          "</span></div></td>" +
+          "<td>" + badge + "</td>" +
+          '<td class="ops"><button class="ghost" type="button" data-act="resend" data-raw="' + esc(s.raw) + '">重发</button></td>' +
+          "</tr>"
+        );
+      }).join("");
+      document.getElementById("sig-empty").hidden = visible.length > 0;
+    }
+
+    async function loadPosts() {
+      const ok = document.getElementById("post-ok").value;
+      const q = document.getElementById("post-q").value.trim();
+      const qs = new URLSearchParams();
+      if (ok) qs.set("ok", ok);
+      if (q) qs.set("q", q);
+      qs.set("skip", String(postSkip));
+      qs.set("take", String(PAGE_SIZE));
+      const res = await fetch("/api/posts?" + qs.toString());
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+      postTotal = Number(data.total) || 0;
+      showErr("post-err", data.lastError || "");
+      const recording = !!data.recording;
+      const recEl = document.getElementById("post-record");
+      if (!postUiReady) {
+        recEl.checked = recording;
+        postUiReady = true;
+      }
+      document.getElementById("post-meta").textContent = String(postTotal);
+      const tbody = document.getElementById("post-body");
+      tbody.innerHTML = items.map((r) => (
+        "<tr>" +
+        '<td class="nowrap muted" style="font-size:12px">' + esc(fmtTime(r.at)) + "</td>" +
+        "<td><div class=\"pair\"><strong>" + esc(r.targetName) + "</strong><span title=\"" + esc(r.targetBase) + "\">" + esc(r.targetBase) + "</span></div></td>" +
+        "<td><span class=\"badge " + (r.ok ? "ok" : "danger") + "\">" + (r.ok ? "成功" : "失败") + "</span></td>" +
+        "<td class=\"nowrap\">" + esc(r.http == null ? "—" : r.http) + "</td>" +
+        "<td class=\"nowrap\">" + esc(r.latencyMs == null ? "—" : r.latencyMs + "ms") + "</td>" +
+        "<td class=\"nowrap\">" + esc(r.pairCount) + "</td>" +
+        '<td class="mono raw clip" title="' + esc((r.raws || []).join(", ")) + '">' + esc(r.rawPreview || "—") + "</td>" +
+        '<td class="mono clip" title="' + esc(r.responsePreview || r.msg || "—") + '">' + esc(r.responsePreview || r.msg || "—") + "</td>" +
+        '<td class="ops">' +
+          '<button class="ghost" type="button" data-act="detail" data-id="' + esc(r.id) + '">详情</button>' +
+          '<button class="ghost" type="button" data-act="resend" data-id="' + esc(r.id) + '">重发</button>' +
+        '</td>' +
+        "</tr>"
+      )).join("");
+      document.getElementById("post-empty").hidden = items.length > 0;
+      document.getElementById("post-empty-hint").textContent = recording
+        ? "向从节点转发后会出现在这里。"
+        : "默认不记录自动转发。勾选「记录」后自动写入；信号表或这里点「重发」都会记一条。";
+      const page = Math.floor(postSkip / PAGE_SIZE) + 1;
+      const pages = Math.max(1, Math.ceil(postTotal / PAGE_SIZE));
+      const pager = document.getElementById("post-pager");
+      pager.hidden = postTotal <= PAGE_SIZE;
+      pager.innerHTML =
+        '<button class="ghost" type="button" id="post-prev"' + (page <= 1 ? " disabled" : "") + ">上一页</button>" +
+        '<span class="hint">第 ' + page + " / " + pages + " 页</span>" +
+        '<button class="ghost" type="button" id="post-next"' + (page >= pages ? " disabled" : "") + ">下一页</button>";
+      const prev = document.getElementById("post-prev");
+      const next = document.getElementById("post-next");
+      if (prev) prev.onclick = () => { postSkip = Math.max(0, postSkip - PAGE_SIZE); void refreshPosts(); };
+      if (next) next.onclick = () => { postSkip += PAGE_SIZE; void refreshPosts(); };
+    }
+
+    function fmtJson(v) {
+      if (v == null || v === "") return "—";
+      if (typeof v !== "string") {
+        try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+      }
+      try { return JSON.stringify(JSON.parse(v), null, 2); } catch { return v; }
+    }
+
+    async function openDetail(id) {
+      const res = await fetch("/api/posts/" + encodeURIComponent(id));
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const d = await res.json();
+      const modal = document.getElementById("modal");
+      document.getElementById("modal-panel").innerHTML =
+        '<div class="modal-head"><h3>请求详情</h3><button class="ghost" type="button" id="modal-close">关闭</button></div>' +
+        '<p class="hint" style="margin-bottom:14px">' + esc(fmtTime(d.at)) + " · " + esc(d.targetName) + " · " +
+        (d.ok ? "成功" : "失败") +
+        (d.http != null ? " · HTTP " + esc(d.http) : "") +
+        (d.latencyMs != null ? " · " + esc(d.latencyMs) + "ms" : "") +
+        "</p>" +
+        '<label class="block">从节点</label><pre>' + esc(d.targetBase) + "</pre>" +
+        '<label class="block">原文</label><pre>' + esc((d.raws || []).join("\n")) + "</pre>" +
+        '<label class="block">请求包体（json=）</label><pre>' + esc(d.body || "—") + "</pre>" +
+        '<label class="block">返回值</label><pre>' + esc(fmtJson(d.response)) + "</pre>";
+      modal.hidden = false;
+      document.getElementById("modal-close").onclick = () => { modal.hidden = true; };
+    }
+
+    async function refreshSignals() {
+      try { await loadSignals(); }
+      catch (e) { showErr("sig-err", e.message || String(e)); }
+    }
+    async function refreshPosts() {
+      try { await loadPosts(); }
+      catch (e) { showErr("post-err", e.message || String(e)); }
+    }
+
+    function startTimers() {
+      if (sigTimer) clearInterval(sigTimer);
+      if (postTimer) clearInterval(postTimer);
+      sigTimer = setInterval(() => {
+        if (currentPage() !== "signals") return;
+        if (!document.getElementById("sig-auto").checked) return;
+        void refreshSignals();
+      }, POLL_MS);
+      postTimer = setInterval(() => {
+        if (currentPage() !== "posts") return;
+        if (!document.getElementById("post-auto").checked) return;
+        void refreshPosts();
+      }, POLL_MS);
+    }
+
+    function targetRowHtml(t) {
+      const orig = t && t.origIndex != null ? String(t.origIndex) : "-1";
+      const has = !!(t && t.hasSecret);
+      return (
+        '<div class="node-edit" data-orig="' + esc(orig) + '">' +
+          "<div><label>名称</label><input class=\"t-name\" placeholder=\"node-a\" value=\"" + esc((t && t.name) || "") + "\" /></div>" +
+          "<div><label>地址</label><input class=\"t-base\" placeholder=\"http://IP:6686\" value=\"" + esc((t && t.base) || "") + "\" /></div>" +
+          "<div><label>密钥 secretKey</label><input class=\"t-secret\" type=\"password\" autocomplete=\"off\" placeholder=\"" +
+            (has ? "已设置，留空不改" : "填写密钥") + "\" /></div>" +
+          '<div><button class="ghost t-del" type="button">删除</button></div>' +
+        "</div>"
+      );
+    }
+
+    async function loadSettings() {
+      showErr("cfg-err", "");
+      const res = await fetch("/api/config");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      const ed = data.editor || data.config || {};
+      document.getElementById("cfg-poll").value = ed.pollIntervalMs ?? 1000;
+      document.getElementById("cfg-timeout").value = ed.requestTimeoutMs ?? 15000;
+      document.getElementById("cfg-uiport").value = ed.uiPort ?? 3780;
+      const main = ed.main || {};
+      document.getElementById("cfg-main-name").value = main.name || "";
+      document.getElementById("cfg-main-base").value = main.base || "";
+      document.getElementById("cfg-main-secret").value = "";
+      document.getElementById("cfg-main-secret").placeholder = main.hasSecret ? "已设置，留空不改" : "填写密钥";
+      const list = Array.isArray(ed.targets) ? ed.targets : [];
+      document.getElementById("cfg-targets").innerHTML = list.map(targetRowHtml).join("");
+    }
+
+    async function saveSettings() {
+      const btn = document.getElementById("cfg-save");
+      btn.disabled = true;
+      showErr("cfg-err", "");
+      document.getElementById("cfg-ok").hidden = true;
+      try {
+        const targets = [...document.querySelectorAll("#cfg-targets .node-edit")].map((row) => ({
+          origIndex: Number(row.getAttribute("data-orig")),
+          name: row.querySelector(".t-name").value.trim(),
+          base: row.querySelector(".t-base").value.trim(),
+          secretKey: row.querySelector(".t-secret").value,
+        }));
+        const res = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pollIntervalMs: Number(document.getElementById("cfg-poll").value),
+            requestTimeoutMs: Number(document.getElementById("cfg-timeout").value),
+            uiPort: Number(document.getElementById("cfg-uiport").value),
+            main: {
+              name: document.getElementById("cfg-main-name").value.trim(),
+              base: document.getElementById("cfg-main-base").value.trim(),
+              secretKey: document.getElementById("cfg-main-secret").value,
+            },
+            targets,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) throw new Error(data.error || "HTTP " + res.status);
+        await loadSettings();
+        document.getElementById("cfg-ok").hidden = false;
+        document.getElementById("cfg-ok").textContent = "已保存，立刻生效。";
+        btn.textContent = "已保存";
+        setTimeout(() => { btn.textContent = "保存全部"; }, 2000);
+      } catch (e) {
+        showErr("cfg-err", e.message || String(e));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function route() {
+      const page = currentPage();
+      setPage(page);
+      if (page === "signals") void refreshSignals();
+      else if (page === "posts") void refreshPosts();
+      else if (page === "settings") void loadSettings().catch((e) => showErr("cfg-err", e.message || String(e)));
+    }
+
+    document.getElementById("sig-refresh").onclick = () => void refreshSignals();
+    document.getElementById("sig-q").addEventListener("input", () => void refreshSignals());
+    document.getElementById("sig-body").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act=\"resend\"]");
+      if (!btn) return;
+      const raw = btn.getAttribute("data-raw") || "";
+      void resendSignal(raw, btn);
+    });
+    document.getElementById("sig-ex-filter").addEventListener("click", (e) => {
+      const toggle = e.target.closest("[data-ex-toggle]");
+      if (toggle) {
+        const group = toggle.getAttribute("data-ex-toggle");
+        const next = openExMenu === group ? "" : group;
+        openExMenu = next;
+        document.getElementById("ex-dd-has").classList.toggle("open", next === "has");
+        document.getElementById("ex-dd-and").classList.toggle("open", next === "and");
+        return;
+      }
+      const opt = e.target.closest("button[data-ex]");
+      if (!opt) return;
+      const code = String(opt.getAttribute("data-ex") || "").trim().toLowerCase();
+      const side = opt.getAttribute("data-side") === "and" ? "and" : "has";
+      if (!code) return;
+      const set = side === "and" ? andFilters : hasFilters;
+      if (set.has(code)) set.delete(code);
+      else set.add(code);
+      lastExChipKey = "";
+      void refreshSignals();
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("#sig-ex-filter")) return;
+      if (!openExMenu) return;
+      closeExMenus();
+    });
+    document.getElementById("sig-ex-clear").onclick = () => {
+      if (!hasFilters.size && !andFilters.size) return;
+      hasFilters.clear();
+      andFilters.clear();
+      lastExChipKey = "";
+      void refreshSignals();
+    };
+    document.getElementById("post-search").onclick = () => { postSkip = 0; void refreshPosts(); };
+    document.getElementById("post-reset").onclick = () => {
+      document.getElementById("post-ok").value = "";
+      document.getElementById("post-q").value = "";
+      postSkip = 0;
+      void refreshPosts();
+    };
+    document.getElementById("post-record").onchange = () => {
+      const on = document.getElementById("post-record").checked;
+      void fetch("/api/posts/recording", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recording: on }),
+      }).then(() => refreshPosts()).catch((e) => showErr("post-err", e.message || String(e)));
+    };
+    document.getElementById("post-clear").onclick = () => {
+      if (!window.confirm("确认清空当前全部 POST 日志？")) return;
+      void fetch("/api/posts/clear", { method: "POST" })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.ok === false) throw new Error(data.error || "HTTP " + res.status);
+          postSkip = 0;
+          await refreshPosts();
+        })
+        .catch((e) => showErr("post-err", e.message || String(e)));
+    };
+    document.getElementById("post-ok").onchange = () => { postSkip = 0; void refreshPosts(); };
+    document.getElementById("post-q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { postSkip = 0; void refreshPosts(); }
+    });
+    async function resendSignal(raw, btn) {
+      if (!raw || btn.disabled) return;
+      if (!window.confirm("确认把这条组合再 POST 到全部从节点？会写入 POST 日志。")) return;
+      btn.disabled = true;
+      const old = btn.textContent;
+      btn.textContent = "重发中…";
+      try {
+        const res = await fetch("/api/signals/resend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raw }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) throw new Error(data.error || "HTTP " + res.status);
+        await refreshSignals();
+      } catch (e) {
+        showErr("sig-err", e.message || String(e));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    }
+    async function resendPost(id, btn) {
+      if (!id || btn.disabled) return;
+      if (!window.confirm("确认把这批组合再 POST 到该从节点？")) return;
+      btn.disabled = true;
+      const old = btn.textContent;
+      btn.textContent = "重发中…";
+      try {
+        const res = await fetch("/api/posts/" + encodeURIComponent(id) + "/resend", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        postSkip = 0;
+        await refreshPosts();
+        if (!res.ok || data.ok === false) throw new Error(data.error || "HTTP " + res.status);
+      } catch (e) {
+        showErr("post-err", e.message || String(e));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    }
+
+    document.getElementById("post-body").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-id]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-id");
+      if (btn.getAttribute("data-act") === "resend") {
+        void resendPost(id, btn);
+        return;
+      }
+      void openDetail(id).catch((err) => showErr("post-err", err.message || String(err)));
+    });
+    document.getElementById("modal").addEventListener("click", (e) => {
+      if (e.target.id === "modal") e.currentTarget.hidden = true;
+    });
+    document.getElementById("cfg-save").onclick = () => void saveSettings();
+    document.getElementById("cfg-add-target").onclick = () => {
+      document.getElementById("cfg-targets").insertAdjacentHTML("beforeend", targetRowHtml({ origIndex: -1, name: "", base: "", hasSecret: false }));
+    };
+    document.getElementById("cfg-targets").addEventListener("click", (e) => {
+      const btn = e.target.closest(".t-del");
+      if (!btn) return;
+      const row = btn.closest(".node-edit");
+      if (row) row.remove();
+    });
+    window.addEventListener("hashchange", route);
+
+    const origFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      const next = Object.assign({ credentials: "same-origin" }, init || {});
+      return origFetch(input, next).then((res) => {
+        const url = String(typeof input === "string" ? input : (input && input.url) || "");
+        if (res.status === 401 && url.indexOf("/api/login") < 0 && url.indexOf("/api/me") < 0) {
+          document.getElementById("login-gate").hidden = false;
+        }
+        return res;
+      });
+    };
+
+    function refreshCaptcha() {
+      const img = document.getElementById("login-captcha-img");
+      img.src = "/api/captcha?" + Date.now();
+      document.getElementById("login-captcha").value = "";
+    }
+    function showLogin() {
+      document.getElementById("login-gate").hidden = false;
+      document.getElementById("login-pass").value = "";
+      refreshCaptcha();
+    }
+    async function enterApp(username) {
+      document.getElementById("login-gate").hidden = true;
+      document.getElementById("who").textContent = username || "admin";
+      showErr("login-err", "");
+      route();
+      startTimers();
+    }
+    async function checkMe() {
+      const res = await origFetch("/api/me", { credentials: "same-origin" });
+      if (!res.ok) return false;
+      const d = await res.json().catch(() => ({}));
+      return d.ok ? d : false;
+    }
+    document.getElementById("login-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("login-btn");
+      btn.disabled = true;
+      showErr("login-err", "");
+      void origFetch("/api/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: document.getElementById("login-user").value.trim(),
+          password: document.getElementById("login-pass").value,
+          captcha: document.getElementById("login-captcha").value.trim(),
+        }),
+      }).then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) throw new Error(data.error || "登录失败");
+        await enterApp(data.username);
+      }).catch((err) => {
+        showErr("login-err", err.message || String(err));
+        refreshCaptcha();
+      }).finally(() => { btn.disabled = false; });
+    });
+    document.getElementById("login-captcha-img").onclick = () => refreshCaptcha();
+    document.getElementById("btn-logout").onclick = () => {
+      void origFetch("/api/logout", { method: "POST", credentials: "same-origin" }).finally(() => {
+        if (sigTimer) clearInterval(sigTimer);
+        if (postTimer) clearInterval(postTimer);
+        sigTimer = null;
+        postTimer = null;
+        showLogin();
+      });
+    };
+    document.getElementById("pw-save").onclick = () => {
+      const oldPassword = document.getElementById("pw-old").value;
+      const newPassword = document.getElementById("pw-new").value;
+      const again = document.getElementById("pw-new2").value;
+      showErr("pw-err", "");
+      document.getElementById("pw-ok").hidden = true;
+      if (newPassword !== again) {
+        showErr("pw-err", "两次输入的新密码不一致");
+        return;
+      }
+      const btn = document.getElementById("pw-save");
+      btn.disabled = true;
+      void fetch("/api/account/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldPassword, newPassword }),
+      }).then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) throw new Error(data.error || "修改失败");
+        document.getElementById("pw-old").value = "";
+        document.getElementById("pw-new").value = "";
+        document.getElementById("pw-new2").value = "";
+        document.getElementById("pw-ok").hidden = false;
+        document.getElementById("pw-ok").textContent = "密码已更新。";
+      }).catch((err) => {
+        showErr("pw-err", err.message || String(err));
+      }).finally(() => { btn.disabled = false; });
+    };
+
+    void checkMe().then((me) => {
+      if (me) return enterApp(me.username);
+      showLogin();
+    });
+  </script>
+</body>
+</html>
