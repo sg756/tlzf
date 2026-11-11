@@ -8,6 +8,14 @@ require_root() {
   fi
 }
 
+print_default_login() {
+  echo
+  echo "查看页登录（首次启动、库里还没有 admin 时）："
+  echo "  用户名: admin"
+  echo "  初始密码: admin123"
+  echo "  请登录后立刻改密码。若 ${1:-APP_ROOT}/data/app.db 已存在，则仍用库里已有密码。"
+}
+
 # 去掉 Windows 回车再 source，避免 APP_ROOT / SERVICE_NAME 带 \r
 source_conf() {
   local f="${1:-./arbitrage.conf}"
