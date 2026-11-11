@@ -1,0 +1,46 @@
+name: Publish dist-release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Pack dist-release.zip
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y zip
+          bash scripts/pack-dist-release.sh
+
+      - name: Upload GitHub Release (tag dist)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dist
+          name: dist-release
+          body: |
+            Linux 一键安装用的发布包（不含 node_modules、不含 data）。
+            空机器：
+            `curl -fsSL https://raw.githubusercontent.com/sg756/tlzf/main/scripts/install-env/remote-bootstrap.sh | sudo bash`
+          files: dist-release.zip
+          make_latest: true
+          overwrite: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

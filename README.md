@@ -23,18 +23,21 @@
    服务器系统选择 linux centos9。只改 scripts/install-env/arbitrage.conf 的 APP_ROOT。
    不要传 node_modules、不要传 data/app.db 到公共位置。
 
-   首次（在服务器上）：
-   1) 改 scripts/install-env/arbitrage.conf（APP_ROOT 建议 /opt/FlowOrderArbitrage）
-   2) 把代码上传到 APP_ROOT
-   3) sudo bash scripts/install-env/bootstrap.sh
-      自动：装 Node 20、运行用户、防火墙 → apply-dist（登记服务 + npm + 启动）
-   4) 浏览器打开 http://服务器IP:3780/ ，用 admin 登录后到「运行配置」填主/从节点
-   日常启停：sudo bash  start.sh | restart.sh | stop.sh
+   首次（空 Linux，推荐）：
+   1) 本仓库 main 推送后，GitHub Actions 会把 dist-release.zip 发到 Release（tag=dist）
+   2) 服务器一条命令（装 Node、拉发布包到 /opt/FlowOrderArbitrage、登记服务并启动）：
+      curl -fsSL https://raw.githubusercontent.com/sg756/tlzf/main/scripts/install-env/remote-bootstrap.sh | sudo bash
+   3) 浏览器打开 http://服务器IP:3780/ ，用 admin 登录后到「运行配置」填主/从节点
+   日常启停：sudo bash /opt/FlowOrderArbitrage/scripts/install-env/start.sh | restart.sh | stop.sh
+
+   也可先改 scripts/install-env/arbitrage.conf 的 APP_ROOT，把仓库或 dist-release 放到该目录后再：
+      sudo bash scripts/install-env/bootstrap.sh
+   目录是空的话，bootstrap 会自动从 GitHub 拉 dist-release.zip。
 
    ---以后重新再发版---
-   本机：powershell -ExecutionPolicy Bypass -File scripts\deploy-windows\build.ps1
-   把生成的 dist-release\ 内容覆盖到服务器 APP_ROOT
-   服务器：sudo bash scripts/install-env/apply-dist.sh（自动 npm 装依赖并重启）
+   推送到 GitHub main（自动发 Release），服务器：
+      sudo bash /opt/FlowOrderArbitrage/scripts/install-env/fetch-dist.sh
+   或本机 build.ps1，把 dist-release\ 覆盖到 APP_ROOT 后再 apply-dist.sh
    改密钥、间隔、从节点：查看页「运行配置」保存即可。
 
  1.5 开发环境搭建
@@ -92,8 +95,9 @@ Linux 装环境仍改：`scripts/install-env/arbitrage.conf`（APP_ROOT / 运行
 |------|------|
 | 本机装依赖 | `npm install` |
 | Windows 本机编译 | `build.ps1`（生成 `dist-release\`） |
-| Linux 首次一键 | `sudo bash  bootstrap.sh` |
-| Linux 以后发版 | `sudo bash  apply-dist.sh`（自动 npm 装依赖并重启） |
+| Linux 空机一键 | `curl .../remote-bootstrap.sh \| sudo bash`（拉 GitHub 发布包 + 装环境 + 启动） |
+| Linux 首次一键 | `sudo bash  bootstrap.sh`（目录空则自动拉 GitHub 包） |
+| Linux 以后发版 | `sudo bash  fetch-dist.sh`（拉最新 zip 并重启）或 `apply-dist.sh` |
 | Linux 启停 | `sudo bash  start.sh` / `restart.sh` / `stop.sh` |
 | 本机启动 | `npm start`（即 `node dist/main.js`） |
 | 本机查看页 | 浏览器打开 `http://127.0.0.1:3780/`（`uiPort`） |
@@ -107,7 +111,9 @@ Linux 装环境仍改：`scripts/install-env/arbitrage.conf`（APP_ROOT / 运行
 | 项 | 作用 |
 |----|------|
 | `data/app.db` | 账号和运行配置（含密钥） |
-| `bootstrap.sh` | 首次一键：装环境 + apply-dist |
+| `remote-bootstrap.sh` | 空机 curl 一键：拉脚本 + 拉 GitHub 包 + 装环境 + 启动 |
+| `bootstrap.sh` | 首次一键：装环境 + 必要时拉包 + apply-dist |
+| `fetch-dist.sh` | 从 GitHub 覆盖 dist-release.zip 并重启 |
 | `install.sh` | 只装 Node、用户、防火墙 |
 | `apply-dist.sh` | 登记 systemd、自动 npm 下载依赖并启动 |
 | `build.ps1` | Windows 本机编译，生成 `dist-release\` |

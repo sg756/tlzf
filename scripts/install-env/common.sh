@@ -67,6 +67,86 @@ resolve_app_root() {
   echo "${conf_root}"
 }
 
+github_release_zip_url() {
+  local repo=${1:-${GITHUB_REPO:-sg756/tlzf}}
+  local tag=${2:-${GITHUB_RELEASE_TAG:-dist}}
+  echo "https://github.com/${repo}/releases/download/${tag}/dist-release.zip"
+}
+
+github_latest_zip_url() {
+  local repo=${1:-${GITHUB_REPO:-sg756/tlzf}}
+  echo "https://github.com/${repo}/releases/latest/download/dist-release.zip"
+}
+
+curl_github() {
+  local url=$1
+  local out=$2
+  local args=(-fsSL --retry 3 --retry-delay 2 -o "$out")
+  if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
+    args+=(-H "Authorization: Bearer ${GH_TOKEN:-${GITHUB_TOKEN}}")
+  fi
+  curl "${args[@]}" "$url"
+}
+
+# 从 GitHub Release 把 dist-release.zip 覆盖到 dest（保留 dest/data、dest/logs）
+fetch_github_dist() {
+  local dest=$1
+  local repo=${GITHUB_REPO:-sg756/tlzf}
+  local tag=${GITHUB_RELEASE_TAG:-dist}
+  local tmp zip unpack
+  if ! command -v unzip >/dev/null 2>&1; then
+    if command -v dnf >/dev/null 2>&1; then
+      dnf -y install unzip >/dev/null
+    else
+      echo "需要 unzip。请先安装 unzip。" >&2
+      return 1
+    fi
+  fi
+  mkdir -p "$dest"
+  tmp="$(mktemp -d /tmp/foarb-dist-XXXX)"
+  zip="${tmp}/dist-release.zip"
+  unpack="${tmp}/unpack"
+  mkdir -p "$unpack"
+  echo "==> 从 GitHub 拉取发布包 ${repo} tag=${tag}"
+  if ! curl_github "$(github_release_zip_url "$repo" "$tag")" "$zip"; then
+    echo "    tag=${tag} 没有包，改试 latest"
+    if ! curl_github "$(github_latest_zip_url "$repo")" "$zip"; then
+      echo "无法下载 dist-release.zip。请确认仓库 ${repo} 已有 GitHub Release。" >&2
+      rm -rf "$tmp"
+      return 1
+    fi
+  fi
+  unzip -qo "$zip" -d "$unpack"
+  local src="$unpack"
+  if [[ ! -f "${unpack}/package.json" ]]; then
+    local inner
+    inner="$(find "$unpack" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    if [[ -n "$inner" && -f "${inner}/package.json" ]]; then
+      src="$inner"
+    fi
+  fi
+  if [[ ! -f "${src}/package.json" ]]; then
+    echo "发布包里没有 package.json" >&2
+    rm -rf "$tmp"
+    return 1
+  fi
+  echo "==> 覆盖到 ${dest}（保留 data/、logs/）"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --exclude data --exclude logs --exclude node_modules "${src}/" "${dest}/"
+  else
+    (
+      cd "$src"
+      tar --exclude=data --exclude=logs --exclude=node_modules -cf - .
+    ) | tar -C "$dest" -xf -
+  fi
+  rm -rf "$tmp"
+  if [[ ! -f "${dest}/package.json" ]] || { [[ ! -f "${dest}/dist/main.js" ]] && [[ ! -f "${dest}/src/main.ts" ]]; }; then
+    echo "覆盖后 ${dest} 仍不完整（需要 package.json 与 dist/main.js）" >&2
+    return 1
+  fi
+  echo "==> 发布包已放到 ${dest}"
+}
+
 # 找系统级 node（sudo 的 PATH 往往没有 /usr/local/bin，也看不到用户 nvm）。
 # 优先：arbitrage.conf 的 NODE_BIN → /usr/local/bin → PATH → /usr/bin
 # 不采用家目录里的 nvm/fnm，systemd 的业务用户跑不起来。

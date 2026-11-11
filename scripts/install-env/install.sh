@@ -31,7 +31,7 @@ fi
 mkdir -p "${APP_ROOT}"
 
 echo "==> 安装基础包"
-dnf -y install ca-certificates curl tar gzip
+dnf -y install ca-certificates curl tar gzip unzip rsync
 
 NODE_BIN="$(resolve_node_bin || true)"
 need_node=1

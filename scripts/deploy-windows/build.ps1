@@ -206,10 +206,15 @@ function Publish-ReleaseBundle {
       Remove-Item -LiteralPath $extra -Force
     }
   }
+  $scriptsOut = Join-Path $OutDir "scripts"
+  New-Item -ItemType Directory -Path $scriptsOut -Force | Out-Null
   $copyUi = Join-Path $SourceRoot "scripts\copy-ui.cjs"
   if (Test-Path -LiteralPath $copyUi) {
-    New-Item -ItemType Directory -Path (Join-Path $OutDir "scripts") -Force | Out-Null
-    Copy-Item -LiteralPath $copyUi -Destination (Join-Path $OutDir "scripts\copy-ui.cjs") -Force
+    Copy-Item -LiteralPath $copyUi -Destination (Join-Path $scriptsOut "copy-ui.cjs") -Force
+  }
+  $installEnv = Join-Path $SourceRoot "scripts\install-env"
+  if (Test-Path -LiteralPath $installEnv) {
+    Copy-Item -Path $installEnv -Destination (Join-Path $scriptsOut "install-env") -Recurse -Force
   }
 
   if (-not (Test-Path (Join-Path $OutDir "dist\main.js")) -or -not (Test-Path (Join-Path $OutDir "package.json"))) {
@@ -269,7 +274,7 @@ Write-Host "Windows 构建完成。"
 Write-Host "  上传用目录: $ReleaseDir"
 Write-Host ""
 Write-Host "下一步："
-Write-Host "  1) 将 $ReleaseDir\ 内容覆盖到 Linux 的 APP_ROOT（arbitrage.conf）"
-Write-Host "  2) 首次：sudo bash scripts/install-env/bootstrap.sh"
-Write-Host "     以后发版：sudo bash scripts/install-env/apply-dist.sh"
+Write-Host "  推送到 GitHub main 后会自动发 dist-release.zip；空 Linux："
+Write-Host "    curl -fsSL https://raw.githubusercontent.com/sg756/tlzf/main/scripts/install-env/remote-bootstrap.sh | sudo bash"
+Write-Host "  或将 $ReleaseDir\ 内容覆盖到 APP_ROOT 后：sudo bash scripts/install-env/bootstrap.sh"
 Write-Host "  详见 scripts\deploy-windows\README.txt"
