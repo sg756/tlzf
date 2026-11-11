@@ -18,6 +18,7 @@ source_conf
 
 APP_ROOT="$(resolve_app_root "${APP_ROOT:-/opt/FlowOrderArbitrage}")"
 APP_ROOT="${APP_ROOT:-/opt/FlowOrderArbitrage}"
+sync_app_root_conf "${APP_ROOT}"
 RUN_USER="${RUN_USER:-floworder-arb}"
 SERVICE_NAME="${SERVICE_NAME:-floworder-arbitrage}"
 COMPILE_ON_SERVER="${COMPILE_ON_SERVER:-false}"

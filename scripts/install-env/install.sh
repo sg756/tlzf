@@ -18,6 +18,7 @@ source_conf
 
 APP_ROOT="$(resolve_app_root "${APP_ROOT:-/opt/FlowOrderArbitrage}")"
 APP_ROOT="${APP_ROOT:-/opt/FlowOrderArbitrage}"
+sync_app_root_conf "${APP_ROOT}"
 RUN_USER="${RUN_USER:-floworder-arb}"
 
 echo "==> 【install-env】装服务器环境（CentOS 9 / RHEL 9）"

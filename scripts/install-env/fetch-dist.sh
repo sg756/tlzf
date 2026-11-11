@@ -16,8 +16,10 @@ source_conf
 APP_ROOT="$(resolve_app_root "${APP_ROOT:-/opt/FlowOrderArbitrage}")"
 APP_ROOT="${APP_ROOT:-/opt/FlowOrderArbitrage}"
 SCRIPT_DIR="$(pwd)"
+sync_app_root_conf "${APP_ROOT}"
 
 fetch_github_dist "${APP_ROOT}"
+sync_app_root_conf "${APP_ROOT}"
 echo
 echo "==> 应用发布包并重启"
 bash "${SCRIPT_DIR}/apply-dist.sh"

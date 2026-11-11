@@ -67,6 +67,21 @@ resolve_app_root() {
   echo "${conf_root}"
 }
 
+# 把实际安装目录写回服务器上的 arbitrage.conf（不改 GitHub 仓库模板）。
+sync_app_root_conf() {
+  local root=$1
+  local f
+  [[ -n "$root" ]] || return 0
+  for f in "./arbitrage.conf" "${root}/scripts/install-env/arbitrage.conf"; do
+    [[ -f "$f" ]] || continue
+    if grep -q '^APP_ROOT=' "$f"; then
+      sed -i "s|^APP_ROOT=.*|APP_ROOT=${root}|" "$f"
+    else
+      printf '\nAPP_ROOT=%s\n' "$root" >> "$f"
+    fi
+  done
+}
+
 github_release_zip_url() {
   local repo=${1:-${GITHUB_REPO:-sg756/tlzf}}
   local tag=${2:-${GITHUB_RELEASE_TAG:-dist}}
@@ -130,14 +145,28 @@ fetch_github_dist() {
     rm -rf "$tmp"
     return 1
   fi
-  echo "==> 覆盖到 ${dest}（保留 data/、logs/）"
+  echo "==> 覆盖到 ${dest}（保留 data/、logs/、已有 arbitrage.conf）"
+  local keep_conf=0
+  if [[ -f "${dest}/scripts/install-env/arbitrage.conf" ]]; then
+    keep_conf=1
+    cp -a "${dest}/scripts/install-env/arbitrage.conf" "${tmp}/arbitrage.conf.keep"
+  fi
   if command -v rsync >/dev/null 2>&1; then
-    rsync -a --exclude data --exclude logs --exclude node_modules "${src}/" "${dest}/"
+    rsync -a --exclude data --exclude logs --exclude node_modules \
+      --exclude scripts/install-env/arbitrage.conf \
+      "${src}/" "${dest}/"
   else
     (
       cd "$src"
-      tar --exclude=data --exclude=logs --exclude=node_modules -cf - .
+      tar --exclude=data --exclude=logs --exclude=node_modules \
+        --exclude=scripts/install-env/arbitrage.conf -cf - .
     ) | tar -C "$dest" -xf -
+  fi
+  mkdir -p "${dest}/scripts/install-env"
+  if [[ "${keep_conf}" -eq 1 ]]; then
+    cp -a "${tmp}/arbitrage.conf.keep" "${dest}/scripts/install-env/arbitrage.conf"
+  elif [[ -f "${src}/scripts/install-env/arbitrage.conf" && ! -f "${dest}/scripts/install-env/arbitrage.conf" ]]; then
+    cp -a "${src}/scripts/install-env/arbitrage.conf" "${dest}/scripts/install-env/arbitrage.conf"
   fi
   rm -rf "$tmp"
   if [[ ! -f "${dest}/package.json" ]] || { [[ ! -f "${dest}/dist/main.js" ]] && [[ ! -f "${dest}/src/main.ts" ]]; }; then

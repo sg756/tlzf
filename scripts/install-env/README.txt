@@ -25,7 +25,8 @@ Linux 服务器要跑 FlowOrderArbitrage，就从这里开始。
 --------------------------------------------------------------------------------
 
   编辑 arbitrage.conf（至少）：
-    APP_ROOT      发布目录（不要放 /root 下）
+    APP_ROOT      空机默认发布目录（不要放 /root 下）。
+                  安装后服务器上的 conf 会改成实际路径；GitHub 仓库里仍是模板。
     UI_PORT       防火墙端口，默认 3780
     COMPILE_ON_SERVER  上传源码在服务器编译则 true；上传 dist-release 则 false
 

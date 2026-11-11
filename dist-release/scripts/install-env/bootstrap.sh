@@ -18,6 +18,7 @@ source_conf
 APP_ROOT="$(resolve_app_root "${APP_ROOT:-/opt/FlowOrderArbitrage}")"
 APP_ROOT="${APP_ROOT:-/opt/FlowOrderArbitrage}"
 SCRIPT_DIR="$(pwd)"
+sync_app_root_conf "${APP_ROOT}"
 
 echo "==> 【bootstrap】发布目录 APP_ROOT=${APP_ROOT}"
 echo "==> 1/2 安装服务器环境（Node、运行用户、防火墙）"
@@ -27,6 +28,7 @@ if [[ ! -f "${APP_ROOT}/package.json" || ( ! -f "${APP_ROOT}/dist/main.js" && ! 
   echo
   echo "==> ${APP_ROOT} 还没有发布包，从 GitHub 拉取 dist-release.zip"
   fetch_github_dist "${APP_ROOT}"
+  sync_app_root_conf "${APP_ROOT}"
 fi
 
 echo
