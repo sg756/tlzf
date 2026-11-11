@@ -4,6 +4,18 @@
 
 简介
 此服务是在 cbb 中间件（cbb超级套利 ）基础上做的套利信号接收转发  ，好处就是软件可以控制多个自己的账户同时开启组合,再也不用手忙脚乱了 .
+
+## Linux 服务器一键安装（CentOS 9）
+
+服务器上直接执行下面这一条即可（不用先改配置、不用先上传代码）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sg756/tlzf/main/scripts/install-env/remote-bootstrap.sh | sudo bash
+```
+
+装完打开 `http://服务器IP:3780/` ，默认账号 `admin` / `admin123`。登录后到「运行配置」填主/从节点。
+日常启停：`sudo bash /opt/FlowOrderArbitrage/scripts/install-env/start.sh`（或 `restart.sh` / `stop.sh`）
+
 ##
 架构
 本系统 Node.js 编写，无 Nest  。进程内带查看页（侧栏「信号显示」「POST日志」「运行配置」），需登录。运行配置存在 SQLite（data/app.db）。
@@ -20,24 +32,8 @@
    npm run build
    需要 Node 18+。编完得到 dist\（main.js 等）。
 1.2 发布流程
-   服务器系统选择 linux centos9。只改 scripts/install-env/arbitrage.conf 的 APP_ROOT。
+   Linux CentOS 9 用上面的一键安装命令即可。
    不要传 node_modules、不要传 data/app.db 到公共位置。
-
-   首次（空 Linux，推荐）：
-   1) 本仓库 main 推送后，GitHub Actions 会把 dist-release.zip 发到 Release（tag=dist）
-   2) 服务器一条命令（装 Node、拉发布包到 /opt/FlowOrderArbitrage、登记服务并启动）：
-      curl -fsSL https://raw.githubusercontent.com/sg756/tlzf/main/scripts/install-env/remote-bootstrap.sh | sudo bash
-   3) 浏览器打开 http://服务器IP:3780/ ，用 admin 登录后到「运行配置」填主/从节点
-   日常启停：sudo bash /opt/FlowOrderArbitrage/scripts/install-env/start.sh | restart.sh | stop.sh
-
-   也可先改 scripts/install-env/arbitrage.conf 的 APP_ROOT，把仓库或 dist-release 放到该目录后再：
-      sudo bash scripts/install-env/bootstrap.sh
-   目录是空的话，bootstrap 会自动从 GitHub 拉 dist-release.zip。
-
-   ---以后重新再发版---
-   推送到 GitHub main（自动发 Release），服务器：
-      sudo bash /opt/FlowOrderArbitrage/scripts/install-env/fetch-dist.sh
-   或本机 build.ps1，把 dist-release\ 覆盖到 APP_ROOT 后再 apply-dist.sh
    改密钥、间隔、从节点：查看页「运行配置」保存即可。
 
  1.5 开发环境搭建
@@ -96,9 +92,7 @@ Linux 装环境仍改：`scripts/install-env/arbitrage.conf`（APP_ROOT / 运行
 |------|------|
 | 本机装依赖 | `npm install` |
 | Windows 本机编译 | `build.ps1`（生成 `dist-release\`） |
-| Linux 空机一键 | `curl .../remote-bootstrap.sh \| sudo bash`（拉 GitHub 发布包 + 装环境 + 启动） |
-| Linux 首次一键 | `sudo bash  bootstrap.sh`（目录空则自动拉 GitHub 包） |
-| Linux 以后发版 | `sudo bash  fetch-dist.sh`（拉最新 zip 并重启）或 `apply-dist.sh` |
+| Linux 一键安装 | `curl .../remote-bootstrap.sh \| sudo bash`（CentOS 9，装环境 + 拉包 + 启动） |
 | Linux 启停 | `sudo bash  start.sh` / `restart.sh` / `stop.sh` |
 | 本机启动 | `npm start`（即 `node dist/main.js`） |
 | 本机查看页 | 浏览器打开 `http://127.0.0.1:3780/`（`uiPort`） |

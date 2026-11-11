@@ -18,12 +18,10 @@ FlowOrderArbitrage 运维脚本总说明
 完整顺序
 --------------------------------------------------------------------------------
 
-  —— 服务器（首次）——
-  1) 改 install-env/arbitrage.conf 的 APP_ROOT
-  2) 把 dist-release\ 的内容覆盖到 APP_ROOT
-  3) sudo bash scripts/install-env/bootstrap.sh
-     自动：Node / 用户 / 防火墙 → 登记服务 + npm 装依赖 → 启动
-  4) 浏览器打开查看页，登录后在「运行配置」填主/从节点
+  —— 服务器（首次，推荐一键）——
+  curl -fsSL https://raw.githubusercontent.com/sg756/tlzf/main/scripts/install-env/remote-bootstrap.sh | sudo bash
+  装完打开 http://服务器IP:3780/ ，默认账号 admin / admin123
+  登录后在「运行配置」填主/从节点
 
   —— 本机 Windows（每次发版）——
   5) powershell -ExecutionPolicy Bypass -File scripts\deploy-windows\build.ps1
