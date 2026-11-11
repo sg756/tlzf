@@ -2,7 +2,10 @@ node_modules/
 dist/
 config.json
 config.json.bak
-dist-release/
+dist-release/node_modules/
+dist-release/data/
+dist-release/logs/
+dist-release.zip
 scripts/deploy-windows/build.conf
 logs/
 data/

@@ -1,0 +1,22 @@
+{
+  "name": "floworder-arbitrage",
+  "version": "0.1.0",
+  "description": "套利对冲组合信号接收转发（查看页需登录）",
+  "private": true,
+  "scripts": {
+    "build": "tsc && node scripts/copy-ui.cjs",
+    "start": "node dist/main.js",
+    "check": "tsx src/check-hedge.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "sql.js": "^1.14.2"
+  }
+}

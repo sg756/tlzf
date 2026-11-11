@@ -61,7 +61,8 @@
 |------|------|
 | `src/` | 转发服务源码 |
 | `public/` | 查看页（信号显示 / POST日志 / 运行配置） |
-| `dist/` | 编译产物，Linux 上 `node dist/main.js` |
+| `dist/` | 本机编译产物（不进 Git） |
+| `dist-release/` | 进 Git 的 Linux 发布包（`package.json` 与 `dist/` 同级） |
 | `scripts/install-env/` | Linux 装环境、写 systemd、应用 dist |
 | `data/app.db` | SQLite：账号、会话、运行配置（含密钥，不要提交） |
 
