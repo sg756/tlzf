@@ -8,12 +8,17 @@ require_root() {
   fi
 }
 
+# 与 src/auth.ts 中 DEFAULT_USER / DEFAULT_PASSWORD 保持一致
 print_default_login() {
+  local app_root=${1:-}
   echo
-  echo "查看页登录（首次启动、库里还没有 admin 时）："
-  echo "  用户名: admin"
-  echo "  初始密码: admin123"
-  echo "  请登录后立刻改密码。若 ${1:-APP_ROOT}/data/app.db 已存在，则仍用库里已有密码。"
+  echo "查看页登录（库里还没有管理员时，首次启动会创建）："
+  echo "  账号: admin"
+  echo "  密码: admin123"
+  echo "  请登录后立刻改密码。"
+  if [[ -n "${app_root}" && -f "${app_root}/data/app.db" ]]; then
+    echo "  已有 ${app_root}/data/app.db 时沿用库里的密码，不会重置成 admin123。"
+  fi
 }
 
 # 去掉 Windows 回车再 source，避免 APP_ROOT / SERVICE_NAME 带 \r

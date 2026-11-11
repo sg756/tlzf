@@ -37,4 +37,3 @@ bash "${SCRIPT_DIR}/apply-dist.sh"
 
 echo
 echo "【bootstrap】完成。节点密钥请登录查看页「运行配置」填写。"
-print_default_login "${APP_ROOT}"
