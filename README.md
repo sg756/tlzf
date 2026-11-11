@@ -7,7 +7,7 @@
 
 ## Linux 服务器一键安装（CentOS 9）
 
-服务器上直接执行下面这一条即可（不用先改配置、不用先上传代码）：
+服务器上直接执行下面这一条即可（不用先改配置、不用先上传代码）。安装和更新都用这一条，已有 `data/app.db` 和运行配置会保留：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sg756/tlzf/main/scripts/install-env/remote-bootstrap.sh | sudo bash

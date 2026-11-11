@@ -4,9 +4,10 @@ install-env/ · 服务器装环境 + 自动下载依赖
 Linux 服务器要跑 FlowOrderArbitrage，就从这里开始。
 本服务无 Nest、无 MySQL。密钥在查看页「运行配置」里改，存在 data/app.db。
 
-CentOS 9 一键安装（推荐，不用先改配置）：
+CentOS 9 一键安装 / 更新（推荐，不用先改配置）：
   curl -fsSL https://raw.githubusercontent.com/sg756/tlzf/main/scripts/install-env/remote-bootstrap.sh | sudo bash
 装完打开 http://服务器IP:3780/ ，默认账号 admin / admin123。
+同一条命令也可用来更新：覆盖程序文件，保留 data/app.db 和运行配置。
 
 文件：
   arbitrage.conf   ← 只改这个（APP_ROOT / 运行用户 / 端口）
